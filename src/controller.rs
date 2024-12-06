@@ -7,13 +7,15 @@ use evdev::{
     AbsInfo, AbsoluteAxisType, AttributeSet, EventType, InputEvent, Key, UinputAbsSetup,
 };
 
-const SLIDER_AXES: [(AbsoluteAxisType, &str); 6] = [
+const SLIDER_AXES: [(AbsoluteAxisType, &str); 8] = [
     (AbsoluteAxisType::ABS_X, "Left X"),
     (AbsoluteAxisType::ABS_Y, "Left Y"),
     (AbsoluteAxisType::ABS_RX, "Right X"),
     (AbsoluteAxisType::ABS_RY, "Right Y"),
     (AbsoluteAxisType::ABS_THROTTLE, "Throttle"),
     (AbsoluteAxisType::ABS_BRAKE, "Break"),
+    (AbsoluteAxisType::ABS_HAT0X, "Hat X"),
+    (AbsoluteAxisType::ABS_HAT0Y, "Hat Y"),
 ];
 
 const BUTTONS: [(Key, &str); 13] = [
@@ -42,12 +44,17 @@ pub fn build_uninput() -> anyhow::Result<(Box<[AnalogAxis]>, Box<[Button]>)> {
 
     let (event_sender, event_recv) = mpsc::channel();
 
-    let abs_setup = AbsInfo::new(0, -100, 100, 0, 0, 1);
+    let abs_setup_standard = AbsInfo::new(0, -100, 100, 0, 0, 1);
+    let abs_setup_hat = AbsInfo::new(0, -1, 1, 0, 0, 0);
     let mut axes = Vec::with_capacity(SLIDER_AXES.len());
     for (axis, name) in SLIDER_AXES {
-        let axis = UinputAbsSetup::new(axis, abs_setup);
-        device = device.with_absolute_axis(&axis)?;
-        axes.push(AnalogAxis::new(axis.code(), event_sender.clone(), name))
+        let axis_setup = if axis == AbsoluteAxisType::ABS_HAT0X || axis == AbsoluteAxisType::ABS_HAT0Y {
+            UinputAbsSetup::new(axis, abs_setup_hat)
+        } else {
+            UinputAbsSetup::new(axis, abs_setup_standard)
+        };
+        device = device.with_absolute_axis(&axis_setup)?;
+        axes.push(AnalogAxis::new(axis_setup.code(), event_sender.clone(), name))
     }
 
     let mut buttons = Vec::with_capacity(SLIDER_AXES.len());
